@@ -1,1 +1,1 @@
-# Global-AI-Hackathon
+# Monica-AI
