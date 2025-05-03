@@ -1,3 +1,3 @@
-from .wed_wire_tools import WeddingWireChatFlow
+from .wed_wire_tools import WeddingWireMessenger
 
-__all__ = ["WeddingWireChatFlow"]
+__all__ = ["WeddingWireMessenger"]
