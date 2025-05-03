@@ -103,21 +103,26 @@ def homepage():
         if "onboarding" in st.session_state:
             st.markdown("### 💬 Chat with Monica")
 
-            chat = Chat(st.session_state.onboarding)
+            if "chat" not in st.session_state:
+                st.session_state.chat = Chat(st.session_state.onboarding)
+                # Add initial form message
+                initial_message = st.session_state.onboarding.to_string()
+                st.session_state.chat_history = [{"role": "user", "content": initial_message}]
 
-            if "chat_history" not in st.session_state:
-                st.session_state.chat_history = []
+                # Get and display initial response
+                response = st.session_state.chat.run(initial_message)
+                st.session_state.chat_history.append({"role": "assistant", "content": response})
 
+            # Display chat history
             for msg in st.session_state.chat_history:
                 with st.chat_message(msg["role"]):
                     st.markdown(msg["content"])
 
-            user_input = st.session_state.onboarding.to_string()
+            # Chat input for subsequent messages
+            if prompt := st.chat_input("What would you like to know?"):
+                st.chat_message("user").markdown(prompt)
+                st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-            if user_input:
-                st.chat_message("user").markdown(user_input)
-                st.session_state.chat_history.append({"role": "user", "content": user_input})
-
-                response = chat.run(user_input)
+                response = st.session_state.chat.run(prompt)
                 st.chat_message("assistant").markdown(response)
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
