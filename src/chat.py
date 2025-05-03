@@ -6,13 +6,14 @@ from src.ui import OnboardingForm
 load_dotenv()
 OPEN_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = OpenAI(api_key=OPEN_API_KEY)
+
 
 
 class Chat:
-    def __init__(self):
+    def __init__(self, onboarding_info: OnboardingForm):
+        self.client = OpenAI(api_key=OPEN_API_KEY)
         # define the assistant
-        self.assistant = client.beta.assistants.create(
+        self.assistant = self.client.beta.assistants.create(
             name="Wedding Planner",
             instructions="""
                 You are a personal wedding planner assistant, helping users organize the perfect wedding experience.
@@ -34,44 +35,31 @@ class Chat:
             model="gpt-4o-mini"
         )
 
-    def run(self, onboarding: OnboardingForm) -> str:
+        self.thread = self.client.beta.threads.create()
 
-        # each run defies a new thread
-        thread = client.beta.threads.create()
-
-        # from streamlit
-        onboarding_info = f"{str(onboarding.model_dump())}"
-
-        # Set onboarding info as context via a system message
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="assistant",
-            content=f"User onboarding info: {onboarding_info}",
+        self.client.beta.threads.messages.create(
+            thread_id=self.thread.id,
+            role="user",
+            content=f"User onboarding info: {str(onboarding_info.model_dump())}",
         )
 
-        # chat interaction
-        print("Type 'exit' to end the chat.")
-        while True:
-            user_input = input("You: ")
-            if user_input.strip().lower() == "exit":
-                print("Exiting chat. Goodbye!")
-                break
 
-            # Send user message
-            client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=user_input,
-            )
+    def run(self, user_message: str) -> str:
+        self.client.beta.threads.messages.create(
+            thread_id=self.thread.id,
+            role="user",
+            content=user_message,
+        )
+        # model response
+        event_handler = EventHandler()
+        with self.client.beta.threads.runs.stream(
+            thread_id=self.thread.id,
+            assistant_id=self.assistant.id,
+            event_handler=event_handler,
+        ) as stream:
+            stream.until_done()
 
-            # model response
-            with client.beta.threads.runs.stream(
-                thread_id=thread.id,
-                assistant_id=self.assistant.id,
-                event_handler=EventHandler(),
-            ) as stream:
-                stream.until_done()
-            print()
+        return event_handler.get_full_response()
 
     def test(self):
         onboarding = OnboardingForm(
@@ -86,11 +74,19 @@ class Chat:
 
 
 class EventHandler(AssistantEventHandler):
-    def on_text_delta(self, delta, snapshot):
-        print(delta.value, end="")
+    def __init__(self):
+        super().__init__()
+        self.full_response = ""
 
-    def on_error(error):
+    def on_text_delta(self, delta, snapshot):
+        # print(delta.value, end="")
+        self.full_response += delta.value
+
+    def on_error(self, error):
         print(error)
+
+    def get_full_response(self):
+        return self.full_response
 
 
 if __name__ == "__main__":
