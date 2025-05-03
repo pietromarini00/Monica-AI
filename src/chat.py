@@ -16,6 +16,7 @@ class Chat:
         pass
 
     def run(self, onboarding: OnboardingForm) -> str:
+        prompt = f"{str(onboarding.model_dump())}"
         pass
 
 # define the assistant
