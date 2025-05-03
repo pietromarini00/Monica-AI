@@ -1,7 +1,9 @@
 import streamlit as st
 from pydantic import BaseModel
+import datetime
 
 from data.venues import venues
+
 
 class OnboardingForm(BaseModel):
     location: str
@@ -18,13 +20,14 @@ st.set_page_config(
     page_title="Monica – Wedding Planner AI",
     page_icon="💍",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
 
 from src.chat import Chat
 
-st.markdown("""
+st.markdown(
+    """
     <style>
     .stApp {
         background-color: #fafafa;
@@ -60,13 +63,17 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 async def homepage():
     # Header with gradient background
     _, col1, _ = st.columns([1, 3, 1])
     with col1:
-        st.markdown("""
+        st.markdown(
+            """
             <div style='background: linear-gradient(to right, #ff6b6b, #ff8e8e);
                        padding: 2rem;
                        border-radius: 15px;
@@ -75,20 +82,32 @@ async def homepage():
             <h1 style='margin: 0;'>💍 Monica – Your Wedding Planner Assistant</h1>
             <p style='margin: 0.5rem 0 0 0;'>Hello! I'm Monica, your AI wedding planner. Let's get started with a few quick details.</p>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         with st.form("onboarding_form"):
             col1, col2 = st.columns(2)
             with col1:
-                location = st.text_input("📍 Where is the wedding?")
-                budget = st.text_input("💸 What's your budget?")
+                location = st.text_input(
+                    "📍 Where is the wedding?", value="San Diego, CA"
+                )
+                budget = st.text_input("💸 What's your budget?", value="$30,000")
             with col2:
-                guests = st.number_input("👥 Number of guests", min_value=1, max_value=1000, value=100)
-                date = st.date_input("📅 Wedding Date")
+                guests = st.number_input(
+                    "👥 Number of guests", min_value=1, max_value=1000, value=100
+                )
+                date = st.date_input(
+                    "📅 Wedding Date", value=datetime.date(2025, 6, 15)
+                )
 
-            theme = st.text_input("🎨 Do you have a theme or style in mind?")
+            theme = st.text_input(
+                "🎨 Do you have a theme or style in mind?", value="Modern and elegant"
+            )
 
-            submitted = st.form_submit_button("Save and Start Chat", use_container_width=True)
+            submitted = st.form_submit_button(
+                "Save and Start Chat", use_container_width=True
+            )
 
         if submitted:
             st.success("Great! Let's start planning.")
@@ -107,11 +126,15 @@ async def homepage():
                 st.session_state.chat = Chat(st.session_state.onboarding)
                 # Add initial form message
                 initial_message = st.session_state.onboarding.to_string()
-                st.session_state.chat_history = [{"role": "user", "content": initial_message}]
+                st.session_state.chat_history = [
+                    {"role": "user", "content": initial_message}
+                ]
 
                 # Get and display initial response
                 response = await st.session_state.chat.run(initial_message)
-                st.session_state.chat_history.append({"role": "assistant", "content": response})
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": response}
+                )
 
             # Display chat history
             for msg in st.session_state.chat_history:
@@ -121,7 +144,9 @@ async def homepage():
             # Chat input for subsequent messages
             if prompt := st.chat_input("What would you like to know?"):
                 st.chat_message("user").markdown(prompt)
-                st.session_state.chat_history.append({"role": "user", "content": prompt})
+                st.session_state.chat_history.append(
+                    {"role": "user", "content": prompt}
+                )
 
                 response = await st.session_state.chat.run(prompt)
                 st.chat_message("assistant").markdown(response)
