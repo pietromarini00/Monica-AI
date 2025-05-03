@@ -1,6 +1,7 @@
 import streamlit as st
 from pydantic import BaseModel
 
+
 class OnboardingForm(BaseModel):
     location: str
     budget: str
@@ -18,6 +19,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+from src.chat import Chat
 
 st.markdown("""
     <style>
@@ -98,6 +101,8 @@ def homepage():
         if "onboarding" in st.session_state:
             st.markdown("### 💬 Chat with Monica")
 
+            chat = Chat(st.session_state.onboarding)
+
             if "chat_history" not in st.session_state:
                 st.session_state.chat_history = []
 
@@ -114,6 +119,6 @@ def homepage():
                 st.chat_message("user").markdown(user_input)
                 st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-                response = handle_user_message(user_input)
+                response = chat.run(user_input)
                 st.chat_message("assistant").markdown(response)
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
