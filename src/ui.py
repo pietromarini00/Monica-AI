@@ -19,7 +19,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-from src.chat import handle_user_message
+from src.chat import Chat
+chat = Chat()
 
 st.markdown("""
     <style>
