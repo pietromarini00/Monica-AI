@@ -153,3 +153,10 @@ class WeddingWireMessenger:
         elif count < 175:
             return GuestCountCategory.ONE_TWENTY_FIVE_TO_175
         return GuestCountCategory.ONE_SEVENTY_FIVE_PLUS
+
+
+# messenger = WeddingWireMessenger(ui=False)
+# venue = "Riverside Farm"
+# message = "We're still very interested in your venue for our wedding on Feb 1, 2027. Could you please send over more details about available packages and what's included?"
+
+# await messenger.send_message(venue, message)
