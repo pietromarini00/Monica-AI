@@ -12,9 +12,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-assert OPENAI_API_KEY
+OPENAI_API_KEY      = os.getenv('OPENAI_API_KEY')
+TWILIO_ACCOUNT_SID  = os.getenv('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN   = os.getenv('TWILIO_AUTH_TOKEN')
+assert (OPENAI_API_KEY and TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN), "Please set your environment variables in a .env file."
 PORT = int(os.getenv('PORT', 8080))
+
+CONTEXT_PATH = os.getenv('CONTEXT_FILE', 'context.json')
+with open(CONTEXT_PATH, 'r') as f:
+    ctx = json.load(f)
+
+fields = ctx['fields']                  # list of dicts with 'name' & 'prompt'
+required_keys = {f['name'] for f in fields}
+
+# Build the system instructions dynamically:
+field_desc = "\n".join(
+    f"{i+1}. {f['prompt']}"
+    for i,f in enumerate(fields)
+)
 
 SYSTEM_MESSAGE = (
    f"""
@@ -26,6 +41,12 @@ SYSTEM_MESSAGE = (
     People enjoy talking to you because you make them feel heard, supported, and genuinely excited about their big day.
 
     Always stay positive, approachable, and ready to turn dreams into plans.
+
+    Your objective in this call is to gather the folowing information from the caller to help them plan a wedding.
+    {field_desc}\n\n
+    When you have all of them, you close the calls, and then return a JSON object whose keys are 
+    {', '.join(sorted(required_keys))}.
+)
     """
 )
 VOICE = 'alloy'
