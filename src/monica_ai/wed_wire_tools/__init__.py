@@ -1,3 +1,3 @@
-from .chat import WeddingWireMessenger
+from .chat import WeddingWireMessenger, WeddingWireRequest
 
-__all__ = ["WeddingWireMessenger"]
+__all__ = ["WeddingWireMessenger", "WeddingWireRequest"]
