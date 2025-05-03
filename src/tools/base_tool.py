@@ -6,4 +6,4 @@ class BaseTool(ABC):
         self.config = config
     @abstractmethod
     def run(self, **kwargs) -> str:
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
