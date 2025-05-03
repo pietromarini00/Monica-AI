@@ -1,6 +1,14 @@
 import streamlit as st
+from pydantic import BaseModel
 
-# Set page config must be the first Streamlit command
+class OnboardingForm(BaseModel):
+    location: str
+    budget: str
+    guests: int
+    date: str
+    theme: str
+
+
 st.set_page_config(
     page_title="Monica – Wedding Planner AI",
     page_icon="💍",
@@ -10,7 +18,6 @@ st.set_page_config(
 
 from src.chat import handle_user_message
 
-# Custom CSS for better styling
 st.markdown("""
     <style>
     .stApp {
@@ -64,7 +71,6 @@ def homepage():
         </div>
         """, unsafe_allow_html=True)
 
-        # Onboarding form with better styling
         with st.form("onboarding_form"):
             col1, col2 = st.columns(2)
             with col1:
@@ -80,28 +86,24 @@ def homepage():
 
         if submitted:
             st.success("Great! Let's start planning.")
-            st.session_state.onboarding = {
-                "location": location,
-                "budget": budget,
-                "guests": guests,
-                "theme": theme,
-                "date": str(date),
-            }
+            st.session_state.onboarding = OnboardingForm(
+                location=location,
+                budget=budget,
+                guests=guests,
+                theme=theme,
+                date=str(date),
+            )
 
-        # Chat interface
         if "onboarding" in st.session_state:
             st.markdown("### 💬 Chat with Monica")
 
-            # Initialize chat history
             if "chat_history" not in st.session_state:
                 st.session_state.chat_history = []
 
-            # Display chat messages
             for msg in st.session_state.chat_history:
                 with st.chat_message(msg["role"]):
                     st.markdown(msg["content"])
 
-            # Chat input with custom styling
             user_input = st.chat_input(
                 "What can I help you with now?",
                 key="chat_input"
