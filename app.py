@@ -1,1 +1,4 @@
-import streamlit as st
+from src.ui import homepage
+
+if __name__ == "__main__":
+    homepage()

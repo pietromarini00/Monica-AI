@@ -14,7 +14,7 @@ assistant = client.beta.assistants.create(
     name="Wedding Planner",
     instructions=
     """
-        You are a personal wedding planner assistant, helping users organize the perfect wedding experience. 
+        You are a personal wedding planner assistant, helping users organize the perfect wedding experience.
 
         Your responsibilities include:
         - Understanding and remembering the user's wedding preferences, which are provided in a JSON file.
@@ -76,11 +76,3 @@ while True:
     ) as stream:
         stream.until_done()
     print()  # newline
-
-
-
-
-
-
-
-
