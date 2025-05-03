@@ -13,6 +13,7 @@ load_dotenv()
 
 # Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+assert OPENAI_API_KEY
 PORT = int(os.getenv('PORT', 8080))
 
 SYSTEM_MESSAGE = (
@@ -38,9 +39,6 @@ SHOW_TIMING_MATH = False
 
 app = FastAPI()
 
-if not OPENAI_API_KEY:
-    raise ValueError('Missing the OpenAI API key. Please set it in the .env file.')
-
 @app.get("/", response_class=JSONResponse)
 async def index_page():
     return {"message": "Twilio Media Stream Server is running!"}
@@ -50,7 +48,7 @@ async def handle_incoming_call(request: Request):
     """Handle incoming call and return TwiML response to connect to Media Stream."""
     response = VoiceResponse()
     # <Say> punctuation to improve text-to-speech flow
-    response.say("Please wait while we connect your call to the A. I. voice assistant, powered by Twilio and the Open-A.I. Realtime API")
+    response.say("Please wait while we connect your call to the A. I. wedding planner assistant, powered by Twilio and the Open-A.I. Realtime API")
     response.pause(length=1)
     response.say("O.K. you can start talking!")
     host = request.url.hostname
@@ -200,7 +198,7 @@ async def send_initial_conversation_item(openai_ws):
             "content": [
                 {
                     "type": "input_text",
-                    "text": "Greet the user with 'Hello there! I am an AI voice assistant powered by Twilio and the OpenAI Realtime API. You can ask me for facts, jokes, or anything you can imagine. How can I help you?'"
+                    "text": "Hi! I am calling on behalf of a couple who are very interested in your venue for their wedding. I am their assistant wedding planner, and I would love to ask you a few questions to better understand your offerings and help them make an informed decision. Is now a good time to chat?"
                 }
             ]
         }
