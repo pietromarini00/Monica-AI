@@ -193,26 +193,15 @@ class EventHandler(AssistantEventHandler):
 
     async def submit_tool_outputs(self, tool_outputs, run_id):
         logger.info("Submitting tool outputs")
-        # Create a new event handler for the tool output submission
-        tool_event_handler = EventHandler(self.client)
-
-        # Use the submit_tool_outputs_stream helper
-        with self.client.beta.threads.runs.submit_tool_outputs_stream(
+        # Just submit the tool outputs without waiting for a response
+        self.client.beta.threads.runs.submit_tool_outputs(
             thread_id=self.thread_id,
             run_id=run_id,
-            tool_outputs=tool_outputs,
-            event_handler=tool_event_handler,
-        ) as stream:
-            for text in stream.text_deltas:
-                self.full_response += text
-                logger.debug(f"Received text delta from tool output: {text}")
-            logger.info("Tool outputs submission completed")
-
-            # Get the final response from the tool event handler
-            tool_response = tool_event_handler.get_full_response()
-            if tool_response:
-                self.full_response += tool_response
-                logger.info(f"Added tool response to full response: {tool_response}")
+            tool_outputs=tool_outputs
+        )
+        # Add our simple response
+        self.full_response = "I sent a message to request more information!"
+        logger.info("Tool outputs submitted and response set")
 
     def on_text_delta(self, delta, snapshot):
         logger.debug(f"Received text delta: {delta.value}")
