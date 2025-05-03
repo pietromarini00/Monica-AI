@@ -8,6 +8,9 @@ class OnboardingForm(BaseModel):
     date: str
     theme: str
 
+    def to_string(self):
+        return f"Location: {self.location}, Budget: {self.budget}, Guests: {self.guests}, Date: {self.date}, Theme: {self.theme}"
+
 
 st.set_page_config(
     page_title="Monica – Wedding Planner AI",
