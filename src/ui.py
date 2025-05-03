@@ -76,7 +76,7 @@ def homepage():
 
             theme = st.text_input("🎨 Do you have a theme or style in mind?")
 
-            submitted = st.form_submit_button("Save and Continue", use_container_width=True)
+            submitted = st.form_submit_button("Save and Start Chat", use_container_width=True)
 
         if submitted:
             st.success("Great! Let's start planning.")
