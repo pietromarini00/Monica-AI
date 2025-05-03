@@ -5,6 +5,8 @@ from src.ui import OnboardingForm
 from src.tools.messanger import WeddingWireRequest, tool_config
 import json
 import logging
+from typing_extensions import override
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -85,7 +87,6 @@ Option 3:
             content=f"User onboarding info: {str(onboarding_info.model_dump())} \n\n Venues: {venues_string}",
         )
 
-
     async def run(self, user_message: str) -> str | tuple[str, dict]:
         logger.info(f"Starting run with message: {user_message[:100]}...")
         self.client.beta.threads.messages.create(
@@ -94,28 +95,27 @@ Option 3:
             content=user_message,
         )
         # model response
-        event_handler = EventHandler()
+        event_handler = EventHandler(self.client)
         logger.info("Starting assistant stream")
-        with self.client.beta.threads.runs.stream(
-            thread_id=self.thread.id,
-            assistant_id=self.assistant.id,
-            event_handler=event_handler,
-        ) as stream:
-            stream.until_done()
-        logger.info("Assistant stream completed")
+        try:
+            with self.client.beta.threads.runs.stream(
+                thread_id=self.thread.id,
+                assistant_id=self.assistant.id,
+                event_handler=event_handler,
+            ) as stream:
+                logger.info("Stream created, waiting for completion...")
+                stream.until_done()
+                logger.info("Stream completed")
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}", exc_info=True)
+            raise
 
-        # Execute any tool calls
-        logger.info("Executing tool calls")
-        tool_result = await event_handler.execute_tool_calls()
-        logger.info("Tool execution completed")
+        # Get the full response
+        full_response = event_handler.get_full_response()
+        logger.info(f"LLM Completion length: {len(full_response)}")
+        logger.info(f"LLM Completion content:\n{full_response}")
 
-        # Return just the response if no tool calls were made
-        if not event_handler.tool_calls:
-            logger.info("No tool calls made, returning just the response")
-            return event_handler.get_full_response(), None
-
-        logger.info("Tool calls were made, returning response and tool result")
-        return event_handler.get_full_response(), tool_result
+        return full_response
 
     def test(self):
         onboarding = OnboardingForm(
@@ -130,56 +130,39 @@ Option 3:
 
 
 class EventHandler(AssistantEventHandler):
-    def __init__(self):
+    def __init__(self, client):
         super().__init__()
+        self.client = client
         self.full_response = ""
         self.tool_calls = []
+        self.run_id = None
+        self.thread_id = None
+        self._event_loop = asyncio.get_event_loop()
         logger.info("EventHandler initialized")
 
-    def on_text_delta(self, delta, snapshot):
-        self.full_response += delta.value
-        logger.debug(f"Received text delta: {delta.value}")
+    @override
+    def on_event(self, event):
+        logger.info(f"Received event: {event.event}")
+        if event.event == 'thread.run.requires_action':
+            self.run_id = event.data.id
+            self.thread_id = event.data.thread_id
+            # Schedule the async handler in the event loop
+            self._event_loop.create_task(self.handle_requires_action(event.data, self.run_id))
 
-    def on_tool_call_delta(self, delta, snapshot):
-        if delta.type == 'function':
-            if delta.function.name:
-                logger.info(f"Received tool call: {delta.function.name}")
-                logger.debug(f"Tool call arguments: {delta.function.arguments}")
-                self.tool_calls.append({
-                    'name': delta.function.name,
-                    'arguments': delta.function.arguments
-                })
+    async def handle_requires_action(self, data, run_id):
+        logger.info("Handling requires_action event")
+        tool_outputs = []
 
-    def on_error(self, error):
-        logger.error(f"Error in EventHandler: {error}")
-
-    def get_full_response(self):
-        logger.info(f"Returning full response of length: {len(self.full_response)}")
-        return self.full_response
-
-    def get_tool_calls(self):
-        logger.info(f"Returning {len(self.tool_calls)} tool calls")
-        return self.tool_calls
-
-    async def execute_tool_calls(self):
-        from src.tools.messanger import WeddingWireMessenger
-        logger.info("Starting tool execution")
-
-        if not self.tool_calls:
-            logger.info("No tool calls to execute")
-            return None
-
-        messenger = WeddingWireMessenger()
-
-        for tool_call in self.tool_calls:
-            if tool_call['name'] == 'request_pricing':
+        for tool in data.required_action.submit_tool_outputs.tool_calls:
+            logger.info(f"Processing tool call: {tool.function.name}")
+            if tool.function.name == "request_pricing":
                 try:
-                    logger.info(f"Executing request_pricing tool call")
                     # Parse the arguments
-                    args = json.loads(tool_call['arguments'])
-                    logger.debug(f"Parsed arguments: {args}")
+                    args = json.loads(tool.function.arguments)
+                    logger.info(f"Tool call arguments: {args}")
 
                     # Create a WeddingWireRequest object
+                    from src.tools.messanger import WeddingWireRequest, WeddingWireMessenger
                     request = WeddingWireRequest(
                         venue_name=args['venue_name'],
                         first_name="Assistant",  # Default values for now
@@ -189,17 +172,63 @@ class EventHandler(AssistantEventHandler):
                         event_year=2025,
                         approx_guest_count=100
                     )
-                    logger.info(f"Created WeddingWireRequest for venue: {request.venue_name}")
 
                     # Execute the tool
-                    logger.info("Calling messenger.request_pricing")
+                    messenger = WeddingWireMessenger()
                     result = await messenger.request_pricing(request)
-                    logger.info("Tool execution completed successfully")
-                    return result
+
+                    tool_outputs.append({
+                        "tool_call_id": tool.id,
+                        "output": json.dumps(result)
+                    })
                 except Exception as e:
                     logger.error(f"Error executing tool call: {e}", exc_info=True)
-                    return None
-        return None
+                    tool_outputs.append({
+                        "tool_call_id": tool.id,
+                        "output": f"Error executing tool: {str(e)}"
+                    })
+
+        # Submit all tool_outputs at the same time
+        await self.submit_tool_outputs(tool_outputs, run_id)
+
+    async def submit_tool_outputs(self, tool_outputs, run_id):
+        logger.info("Submitting tool outputs")
+        # Create a new event handler for the tool output submission
+        tool_event_handler = EventHandler(self.client)
+
+        # Use the submit_tool_outputs_stream helper
+        with self.client.beta.threads.runs.submit_tool_outputs_stream(
+            thread_id=self.thread_id,
+            run_id=run_id,
+            tool_outputs=tool_outputs,
+            event_handler=tool_event_handler,
+        ) as stream:
+            for text in stream.text_deltas:
+                self.full_response += text
+                logger.debug(f"Received text delta from tool output: {text}")
+            logger.info("Tool outputs submission completed")
+
+            # Get the final response from the tool event handler
+            tool_response = tool_event_handler.get_full_response()
+            if tool_response:
+                self.full_response += tool_response
+                logger.info(f"Added tool response to full response: {tool_response}")
+
+    def on_text_delta(self, delta, snapshot):
+        logger.debug(f"Received text delta: {delta.value}")
+        self.full_response += delta.value
+        logger.debug(f"Current full response: {self.full_response}")
+
+    def on_error(self, error):
+        logger.error(f"Error in EventHandler: {error}", exc_info=True)
+
+    def get_full_response(self):
+        logger.info(f"Returning full response of length: {len(self.full_response)}")
+        return self.full_response
+
+    def get_tool_calls(self):
+        logger.info(f"Returning {len(self.tool_calls)} tool calls")
+        return self.tool_calls
 
 
 if __name__ == "__main__":
