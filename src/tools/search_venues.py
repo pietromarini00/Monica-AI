@@ -5,9 +5,7 @@ tool_config = {
     "type": "function",
     "function": {
         "name": "search_venues",
-        "description": (
-            "Search for venues in a given area. "
-        ),
+        "description": "Search for venues in a given area. ",
         "parameters": {
             "type": "object",
             "properties": {
@@ -20,15 +18,19 @@ tool_config = {
                     "description": "The location to search for venues.",
                 },
             },
-            "required": ["symbol"],
+            "required": ["venue_type", "location"],
         },
     }
 }
 
 class SearchVenuesTool(BaseTool):
-
     def __init__(self, name: str, config: dict = tool_config):
         super().__init__(name, config)
 
     def run(self, **kwargs) -> str:
-        pass
+        print(kwargs)
+
+
+if __name__ == "__main__":
+    tool = SearchVenuesTool("search_venues")
+    print(tool.run(venue_type="restaurant", location="New York"))
