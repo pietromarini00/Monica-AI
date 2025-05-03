@@ -62,7 +62,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-def homepage():
+async def homepage():
     # Header with gradient background
     _, col1, _ = st.columns([1, 3, 1])
     with col1:
@@ -110,7 +110,7 @@ def homepage():
                 st.session_state.chat_history = [{"role": "user", "content": initial_message}]
 
                 # Get and display initial response
-                response = st.session_state.chat.run(initial_message)
+                response, tool_result = await st.session_state.chat.run(initial_message)
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
 
             # Display chat history
@@ -123,6 +123,8 @@ def homepage():
                 st.chat_message("user").markdown(prompt)
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-                response = st.session_state.chat.run(prompt)
+                response, tool_result = await st.session_state.chat.run(prompt)
                 st.chat_message("assistant").markdown(response)
+                if tool_result:
+                    st.session_state.chat_history.append({"role": "tool", "content": tool_result})
                 st.session_state.chat_history.append({"role": "assistant", "content": response})

@@ -17,6 +17,24 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+tool_config = {
+    "type": "function",
+    "function": {
+        "name": "request_pricing",
+        "description": "Request pricing information for a venue. ",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "venue_name": {
+                    "type": "string",
+                    "description": "The name of the venue to request pricing for.",
+                },
+            },
+            "required": ["venue_name"],
+        },
+    }
+}
+
 class GuestCountCategory(str):
     """Enum-like class for guest count categories"""
 
@@ -160,3 +178,21 @@ class WeddingWireMessenger:
 # message = "We're still very interested in your venue for our wedding on Feb 1, 2027. Could you please send over more details about available packages and what's included?"
 
 # await messenger.send_message(venue, message)
+
+async def main():
+    messenger = WeddingWireMessenger(ui=False)
+    # Request pricing
+    request = WeddingWireRequest(
+        venue_name="cuvier club by wedgewood weddingwire",
+        first_name="John",
+        last_name="Doe",
+        phone_number="+1234567890",
+        event_month=6,
+        event_year=2025,
+        approx_guest_count=100
+    )
+    pricing_info = await messenger.request_pricing(request)
+    print(pricing_info)
+
+if __name__ == "__main__":
+    asyncio.run(main())

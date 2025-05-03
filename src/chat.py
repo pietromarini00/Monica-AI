@@ -2,6 +2,16 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI, AssistantEventHandler
 from src.ui import OnboardingForm
+from src.tools.messanger import WeddingWireRequest, tool_config
+import json
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 OPEN_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -16,27 +26,10 @@ class Chat:
         # define the assistant
         self.assistant = self.client.beta.assistants.create(
             name="Wedding Planner",
-            # instructions="""
-            #     You are a personal wedding planner assistant, helping users organize the perfect wedding experience.
-
-            #     # Your responsibilities include:
-            #     # - Understanding and remembering the user's wedding preferences, which are provided in a JSON file.
-            #     # - Engaging the user in friendly, supportive, and upbeat conversations to clarify their needs and preferences.
-            #     # - Proposing thoughtful, creative wedding ideas (venues, decorations, menus, timelines, etc.) and asking for feedback to refine suggestions.
-            #     # - Calling tools when appropriate, such as:
-            #     # - Web search to find vendors, venues, or inspiration
-            #     # - A browser agent to review vendor websites or availability
-            #     # - A phone call tool to contact vendors or services on the user's behalf
-            #     # - Keeping a joyful and encouraging tone at all times. Weddings are exciting — reflect that excitement!
-            #     # - If the user becomes upset or stressed, remain calm, empathetic, and patient. Acknowledge their emotions, and gently guide the conversation back to solutions and positivity.
-
-            #     # Your goal is to make the planning process joyful and smooth while acting as a reliable, caring, and capable assistant.
-
-            # """,
             instructions="""
             You are an expert wedding concierge and planner.
 
-You will receive a one-sentence description of a couple’s dream wedding. Your task is to curate three unique and compelling vendor combinations that each include:
+You will receive a one-sentence description of a couple's dream wedding. Your task is to curate three unique and compelling vendor combinations that each include:
 
 One venue
 
@@ -60,7 +53,7 @@ For each vendor, consider their services, reviews, pricing, and city.
 
 Avoid repeating the same vendor across all 3 options.
 
-The explanation should reflect how this combo suits the couple’s desires and elevate their dream—through setting, food, flowers, and entertainment.
+The explanation should reflect how this combo suits the couple's desires and elevate their dream—through setting, food, flowers, and entertainment.
 
 Input Example:
 "A sophisticated garden wedding with elegant touches, local cuisine, and live entertainment for 80 guests."
@@ -80,7 +73,7 @@ Option 2:
 Option 3:
 ...
 """,
-            tools=[],
+            tools=[tool_config],
             model="gpt-4o-mini"
         )
 
@@ -93,7 +86,8 @@ Option 3:
         )
 
 
-    def run(self, user_message: str) -> str:
+    async def run(self, user_message: str) -> str | tuple[str, dict]:
+        logger.info(f"Starting run with message: {user_message[:100]}...")
         self.client.beta.threads.messages.create(
             thread_id=self.thread.id,
             role="user",
@@ -101,14 +95,27 @@ Option 3:
         )
         # model response
         event_handler = EventHandler()
+        logger.info("Starting assistant stream")
         with self.client.beta.threads.runs.stream(
             thread_id=self.thread.id,
             assistant_id=self.assistant.id,
             event_handler=event_handler,
         ) as stream:
             stream.until_done()
+        logger.info("Assistant stream completed")
 
-        return event_handler.get_full_response()
+        # Execute any tool calls
+        logger.info("Executing tool calls")
+        tool_result = await event_handler.execute_tool_calls()
+        logger.info("Tool execution completed")
+
+        # Return just the response if no tool calls were made
+        if not event_handler.tool_calls:
+            logger.info("No tool calls made, returning just the response")
+            return event_handler.get_full_response(), None
+
+        logger.info("Tool calls were made, returning response and tool result")
+        return event_handler.get_full_response(), tool_result
 
     def test(self):
         onboarding = OnboardingForm(
@@ -126,16 +133,73 @@ class EventHandler(AssistantEventHandler):
     def __init__(self):
         super().__init__()
         self.full_response = ""
+        self.tool_calls = []
+        logger.info("EventHandler initialized")
 
     def on_text_delta(self, delta, snapshot):
-        # print(delta.value, end="")
         self.full_response += delta.value
+        logger.debug(f"Received text delta: {delta.value}")
+
+    def on_tool_call_delta(self, delta, snapshot):
+        if delta.type == 'function':
+            if delta.function.name:
+                logger.info(f"Received tool call: {delta.function.name}")
+                logger.debug(f"Tool call arguments: {delta.function.arguments}")
+                self.tool_calls.append({
+                    'name': delta.function.name,
+                    'arguments': delta.function.arguments
+                })
 
     def on_error(self, error):
-        print(error)
+        logger.error(f"Error in EventHandler: {error}")
 
     def get_full_response(self):
+        logger.info(f"Returning full response of length: {len(self.full_response)}")
         return self.full_response
+
+    def get_tool_calls(self):
+        logger.info(f"Returning {len(self.tool_calls)} tool calls")
+        return self.tool_calls
+
+    async def execute_tool_calls(self):
+        from src.tools.messanger import WeddingWireMessenger
+        logger.info("Starting tool execution")
+
+        if not self.tool_calls:
+            logger.info("No tool calls to execute")
+            return None
+
+        messenger = WeddingWireMessenger()
+
+        for tool_call in self.tool_calls:
+            if tool_call['name'] == 'request_pricing':
+                try:
+                    logger.info(f"Executing request_pricing tool call")
+                    # Parse the arguments
+                    args = json.loads(tool_call['arguments'])
+                    logger.debug(f"Parsed arguments: {args}")
+
+                    # Create a WeddingWireRequest object
+                    request = WeddingWireRequest(
+                        venue_name=args['venue_name'],
+                        first_name="Assistant",  # Default values for now
+                        last_name="AI",
+                        phone_number="+1234567890",
+                        event_month=6,
+                        event_year=2025,
+                        approx_guest_count=100
+                    )
+                    logger.info(f"Created WeddingWireRequest for venue: {request.venue_name}")
+
+                    # Execute the tool
+                    logger.info("Calling messenger.request_pricing")
+                    result = await messenger.request_pricing(request)
+                    logger.info("Tool execution completed successfully")
+                    return result
+                except Exception as e:
+                    logger.error(f"Error executing tool call: {e}", exc_info=True)
+                    return None
+        return None
 
 
 if __name__ == "__main__":
