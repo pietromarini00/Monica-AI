@@ -19,8 +19,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-from src.chat import handle_user_message
-
 st.markdown("""
     <style>
     .stApp {
