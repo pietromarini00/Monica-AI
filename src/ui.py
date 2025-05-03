@@ -1,6 +1,7 @@
 import streamlit as st
 from pydantic import BaseModel
 
+from data.venues import venues
 
 class OnboardingForm(BaseModel):
     location: str
@@ -19,6 +20,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 
 from src.chat import Chat
 
@@ -110,10 +112,7 @@ def homepage():
                 with st.chat_message(msg["role"]):
                     st.markdown(msg["content"])
 
-            user_input = st.chat_input(
-                "What can I help you with now?",
-                key="chat_input"
-            )
+            user_input = st.session_state.onboarding.to_string()
 
             if user_input:
                 st.chat_message("user").markdown(user_input)
